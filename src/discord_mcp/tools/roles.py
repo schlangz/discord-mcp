@@ -82,7 +82,11 @@ async def create_role(
     elif icon:
         logger.warning("icon_must_be_bytes", icon_type=type(icon))
 
-    role = await guild.create_role(**kwargs)
+    try:
+        role = await guild.create_role(**kwargs)
+    except discord.HTTPException as e:
+        _handle_discord_error(e)
+        raise
 
     await _with_status(f"Creating role: {name}")
     logger.info("role_created", role_id=str(role.id), name=name, guild_id=guild_id)
@@ -153,7 +157,11 @@ async def edit_role(
     if icon is not None and isinstance(icon, bytes):
         kwargs["icon"] = icon
 
-    role = await role.edit(**kwargs)
+    try:
+        role = await role.edit(**kwargs)
+    except discord.HTTPException as e:
+        _handle_discord_error(e)
+        raise
 
     await _with_status(f"Editing role")
     logger.info("role_edited", role_id=role_id, guild_id=guild_id)
@@ -198,7 +206,11 @@ async def delete_role(role_id: str, guild_id: str) -> dict[str, Any]:
         )
 
     role_name = role.name
-    await role.delete()
+    try:
+        await role.delete()
+    except discord.HTTPException as e:
+        _handle_discord_error(e)
+        raise
 
     await _with_status(f"Deleting role")
     logger.info("role_deleted", role_id=role_id, name=role_name, guild_id=guild_id)
@@ -251,6 +263,7 @@ async def assign_role(user_id: str, role_id: str, guild_id: str) -> dict[str, An
         await member.add_roles(role)
     except discord.HTTPException as e:
         _handle_discord_error(e)
+        raise
 
     await _with_status(f"Adding role to member")
     logger.info("role_assigned", user_id=user_id, role_id=role_id, guild_id=guild_id)
@@ -303,6 +316,7 @@ async def remove_role(user_id: str, role_id: str, guild_id: str) -> dict[str, An
         await member.remove_roles(role)
     except discord.HTTPException as e:
         _handle_discord_error(e)
+        raise
 
     await _with_status(f"Removing role from member")
     logger.info("role_removed", user_id=user_id, role_id=role_id, guild_id=guild_id)
