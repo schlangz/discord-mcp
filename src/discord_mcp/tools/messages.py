@@ -205,7 +205,7 @@ async def edit_message(
     if component_objects is not None:
         kwargs["components"] = component_objects
 
-    await message.edit(**kwargs)
+    message = await message.edit(**kwargs)
 
     await _with_status(f"Editing message")
     logger.info("message_edited", message_id=message_id, channel_id=channel_id)

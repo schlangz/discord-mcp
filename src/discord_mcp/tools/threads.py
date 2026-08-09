@@ -133,7 +133,7 @@ async def edit_thread(
         kwargs["auto_archive_duration"] = auto_archive_duration
 
     try:
-        await thread.edit(**kwargs)
+        thread = await thread.edit(**kwargs)
     except discord.HTTPException as e:
         _handle_discord_error(e)
         raise

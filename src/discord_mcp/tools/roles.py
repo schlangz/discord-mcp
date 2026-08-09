@@ -153,7 +153,7 @@ async def edit_role(
     if icon is not None and isinstance(icon, bytes):
         kwargs["icon"] = icon
 
-    await role.edit(**kwargs)
+    role = await role.edit(**kwargs)
 
     await _with_status(f"Editing role")
     logger.info("role_edited", role_id=role_id, guild_id=guild_id)

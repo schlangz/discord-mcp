@@ -309,7 +309,7 @@ async def edit_channel(
         kwargs["lock_permissions"] = lock_permissions
 
     try:
-        await channel.edit(**kwargs)
+        channel = await channel.edit(**kwargs)
     except discord.HTTPException as e:
         _handle_discord_error(e)
 
@@ -404,7 +404,7 @@ async def move_channel(
         kwargs["category"] = category
 
     try:
-        await channel.edit(**kwargs)
+        channel = await channel.edit(**kwargs)
     except discord.HTTPException as e:
         _handle_discord_error(e)
 
