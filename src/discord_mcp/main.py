@@ -501,11 +501,16 @@ async def send_message_to_channel(
     channel_id: str,
     content: str,
     tts: bool = False,
+    file_path: str | None = None,
 ) -> dict[str, Any]:
+    """file_path, if given, must be a path on the machine running this MCP
+    server (not the MCP client) -- it's opened and uploaded as a real
+    Discord attachment alongside the message content."""
     return await send_message(
         channel_id=channel_id,
         content=content,
         tts=tts,
+        file_path=file_path,
     )
 
 

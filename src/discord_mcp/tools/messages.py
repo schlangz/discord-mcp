@@ -47,6 +47,7 @@ async def send_message(
     allowed_mentions: Optional[dict[str, list[str]]] = None,
     message_reference: Optional[dict[str, str]] = None,
     components: Optional[list[dict[str, Any]]] = None,
+    file_path: Optional[str] = None,
 ) -> dict[str, Any]:
     session = await get_current_session()
     client = session.client
@@ -108,6 +109,18 @@ async def send_message(
             send_kwargs["embed"] = embed_objects[0]
         else:
             send_kwargs["embeds"] = embed_objects
+
+    if file_path:
+        import os
+
+        if not os.path.isfile(file_path):
+            from discord_mcp.discord.exceptions import MessageException
+
+            raise MessageException(
+                f"File not found: {file_path}",
+                details={"file_path": file_path},
+            )
+        send_kwargs["file"] = discord.File(file_path)
 
     message = await channel.send(**send_kwargs)
 
