@@ -161,3 +161,54 @@ async def edit_guild_settings(
         "guild_id": guild_id,
         "updated_settings": list(kwargs.keys()),
     }
+
+
+async def set_default_member_role(guild_id: str, role_id: Optional[str]) -> dict[str, Any]:
+    """Configure (or clear, with role_id=None) the role automatically
+    assigned to members when they join the guild."""
+    from discord_mcp.utils.guild_settings import set_default_role_id
+
+    session = await get_current_session()
+    client = session.client
+
+    if not client:
+        from discord_mcp.discord.exceptions import SessionException
+
+        raise SessionException("Client not initialized")
+
+    guild = client.get_guild(int(guild_id))
+    if not guild:
+        from discord_mcp.discord.exceptions import ModerationException
+
+        raise ModerationException(
+            f"Guild {guild_id} not found",
+            details={"guild_id": guild_id},
+        )
+
+    if role_id is not None and not guild.get_role(int(role_id)):
+        from discord_mcp.discord.exceptions import ModerationException
+
+        raise ModerationException(
+            f"Role {role_id} not found in guild {guild_id}",
+            details={"guild_id": guild_id, "role_id": role_id},
+        )
+
+    set_default_role_id(guild_id, role_id)
+
+    logger.info("default_member_role_set", guild_id=guild_id, role_id=role_id)
+
+    return {
+        "success": True,
+        "guild_id": guild_id,
+        "default_role_id": role_id,
+    }
+
+
+async def get_default_member_role(guild_id: str) -> dict[str, Any]:
+    """Get the role currently auto-assigned to new members, if any."""
+    from discord_mcp.utils.guild_settings import get_default_role_id
+
+    return {
+        "guild_id": guild_id,
+        "default_role_id": get_default_role_id(guild_id),
+    }

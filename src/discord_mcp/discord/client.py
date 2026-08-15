@@ -140,6 +140,29 @@ class DiscordBotClient(commands.Bot):
                 }
             )
 
+        from discord_mcp.utils.guild_settings import get_default_role_id
+
+        role_id = get_default_role_id(str(member.guild.id))
+        if role_id:
+            role = member.guild.get_role(int(role_id))
+            if role:
+                try:
+                    await member.add_roles(role, reason="Default role for new members")
+                    logger.info(
+                        "default_role_assigned",
+                        guild_id=str(member.guild.id),
+                        user_id=str(member.id),
+                        role_id=role_id,
+                    )
+                except discord.HTTPException as e:
+                    logger.warning(
+                        "default_role_assign_failed",
+                        guild_id=str(member.guild.id),
+                        user_id=str(member.id),
+                        role_id=role_id,
+                        error=str(e),
+                    )
+
     async def on_member_remove(self, member: discord.Member):
         if self.event_callback:
             self.event_callback(

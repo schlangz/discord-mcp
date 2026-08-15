@@ -30,7 +30,9 @@ from discord_mcp.tools.events import (
 )
 from discord_mcp.tools.guild import (
     edit_guild_settings,
+    get_default_member_role,
     get_guild_settings,
+    set_default_member_role,
 )
 from discord_mcp.tools.invites import (
     create_invite,
@@ -156,6 +158,8 @@ __all__ = [
     # Guild
     "get_guild_settings",
     "edit_guild_settings",
+    "set_default_member_role",
+    "get_default_member_role",
     # Polls
     "create_poll",
     "end_poll",

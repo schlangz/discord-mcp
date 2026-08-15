@@ -49,6 +49,7 @@ from discord_mcp.tools import (
     get_channel_messages,
     get_channel_permissions,
     get_channels,
+    get_default_member_role,
     get_guild_bans,
     get_guild_settings,
     get_member_info,
@@ -82,6 +83,7 @@ from discord_mcp.tools import (
     send_webhook_message,
     set_category_permissions,
     set_channel_permissions,
+    set_default_member_role,
     set_role_permissions,
     timeout_user,
     unban_user,
@@ -704,6 +706,18 @@ async def edit_guild(
         rules_channel_id=rules_channel_id,
         public_updates_channel_id=public_updates_channel_id,
     )
+
+
+@mcp.tool()
+async def set_guild_default_role(guild_id: str, role_id: str | None) -> dict[str, Any]:
+    """Configure the role automatically assigned to members when they join
+    this guild. Pass role_id=None to stop auto-assigning a role."""
+    return await set_default_member_role(guild_id=guild_id, role_id=role_id)
+
+
+@mcp.tool()
+async def get_guild_default_role(guild_id: str) -> dict[str, Any]:
+    return await get_default_member_role(guild_id=guild_id)
 
 
 @mcp.tool()

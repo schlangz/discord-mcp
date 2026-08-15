@@ -139,6 +139,10 @@ celerybeat.pid
 # SageMath parsed files
 *.sage.py
 
+# Runtime data (per-guild settings, downloads, etc.)
+/data/
+/downloads/
+
 # Environments
 .env
 .venv
