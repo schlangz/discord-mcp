@@ -32,6 +32,7 @@ from discord_mcp.tools import (
     delete_scheduled_event,
     delete_thread,
     delete_webhook,
+    download_channel_attachments,
     edit_automod_rule,
     edit_channel,
     edit_guild_settings,
@@ -519,11 +520,20 @@ async def modify_message(
     channel_id: str,
     message_id: str,
     content: str | None = None,
+    remove_attachment_ids: list[str] | None = None,
+    add_file_paths: list[str] | None = None,
 ) -> dict[str, Any]:
+    """remove_attachment_ids deletes existing attachments by their attachment
+    ID (see fetch_message/fetch_channel_history for IDs). add_file_paths are
+    local paths on the machine running this MCP server that get uploaded as
+    new attachments. Both can be used together to replace an attachment in
+    one call. Only works on messages sent by this bot."""
     return await edit_message(
         channel_id=channel_id,
         message_id=message_id,
         content=content,
+        remove_attachment_ids=remove_attachment_ids,
+        add_file_paths=add_file_paths,
     )
 
 
@@ -568,6 +578,30 @@ async def fetch_channel_history(
         limit=limit,
         before=before,
         after=after,
+    )
+
+
+@mcp.tool()
+async def download_channel_images(
+    channel_id: str,
+    save_dir: str,
+    limit: int | None = 100,
+    before: str | None = None,
+    after: str | None = None,
+    images_only: bool = True,
+) -> dict[str, Any]:
+    """Download attachments from a channel's message history to a local
+    directory on the machine running this MCP server (not the MCP client).
+    By default only image attachments are saved; set images_only=False to
+    download all attachment types. limit=None fetches the entire channel
+    history."""
+    return await download_channel_attachments(
+        channel_id=channel_id,
+        save_dir=save_dir,
+        limit=limit,
+        before=before,
+        after=after,
+        images_only=images_only,
     )
 
 

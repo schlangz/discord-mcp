@@ -45,6 +45,7 @@ from discord_mcp.tools.members import (
 from discord_mcp.tools.messages import (
     bulk_delete_messages,
     delete_message,
+    download_channel_attachments,
     edit_message,
     get_channel_messages,
     get_message,
@@ -142,6 +143,7 @@ __all__ = [
     "bulk_delete_messages",
     "get_message",
     "get_channel_messages",
+    "download_channel_attachments",
     # Moderation
     "timeout_user",
     "remove_timeout",

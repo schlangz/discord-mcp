@@ -7,6 +7,24 @@ from discord_mcp.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tiff", ".svg")
+
+
+def _serialize_attachment(attachment: discord.Attachment) -> dict[str, Any]:
+    return {
+        "id": str(attachment.id),
+        "filename": attachment.filename,
+        "url": attachment.url,
+        "content_type": attachment.content_type,
+        "size": attachment.size,
+    }
+
+
+def _is_image_attachment(attachment: discord.Attachment) -> bool:
+    if attachment.content_type and attachment.content_type.startswith("image/"):
+        return True
+    return attachment.filename.lower().endswith(IMAGE_EXTENSIONS)
+
 
 async def _with_status(activity: str):
     """Helper to update bot status."""
@@ -149,6 +167,8 @@ async def edit_message(
     flags: Optional[int] = None,
     allowed_mentions: Optional[dict[str, list[str]]] = None,
     components: Optional[list[dict[str, Any]]] = None,
+    remove_attachment_ids: Optional[list[str]] = None,
+    add_file_paths: Optional[list[str]] = None,
 ) -> dict[str, Any]:
     session = await get_current_session()
     client = session.client
@@ -205,6 +225,25 @@ async def edit_message(
     if component_objects is not None:
         kwargs["components"] = component_objects
 
+    if remove_attachment_ids is not None or add_file_paths is not None:
+        import os
+
+        remove_ids = {str(a) for a in (remove_attachment_ids or [])}
+        kept_attachments = [a for a in message.attachments if str(a.id) not in remove_ids]
+
+        new_files = []
+        for file_path in add_file_paths or []:
+            if not os.path.isfile(file_path):
+                from discord_mcp.discord.exceptions import MessageException
+
+                raise MessageException(
+                    f"File not found: {file_path}",
+                    details={"file_path": file_path},
+                )
+            new_files.append(discord.File(file_path))
+
+        kwargs["attachments"] = [*kept_attachments, *new_files]
+
     message = await message.edit(**kwargs)
 
     await _with_status(f"Editing message")
@@ -214,6 +253,7 @@ async def edit_message(
         "id": str(message.id),
         "channel_id": str(message.channel.id),
         "content": message.content,
+        "attachments": [_serialize_attachment(a) for a in message.attachments],
         "edited_timestamp": message.edited_at.isoformat() if message.edited_at else None,
     }
 
@@ -346,6 +386,7 @@ async def get_message(channel_id: str, message_id: str) -> dict[str, Any]:
         "mention_everyone": message.mention_everyone,
         "mentions": [str(m.id) for m in message.mentions],
         "channel_mentions": [str(c.id) for c in message.channel_mentions],
+        "attachments": [_serialize_attachment(a) for a in message.attachments],
         "pinned": message.pinned,
     }
 
@@ -406,8 +447,110 @@ async def get_channel_messages(
                 },
                 "timestamp": message.created_at.isoformat(),
                 "edited_timestamp": message.edited_at.isoformat() if message.edited_at else None,
+                "attachments": [_serialize_attachment(a) for a in message.attachments],
                 "pinned": message.pinned,
             }
         )
 
     return messages
+
+
+async def download_channel_attachments(
+    channel_id: str,
+    save_dir: str,
+    limit: Optional[int] = 100,
+    before: Optional[str] = None,
+    after: Optional[str] = None,
+    images_only: bool = True,
+) -> dict[str, Any]:
+    session = await get_current_session()
+    client = session.client
+
+    if not client:
+        from discord_mcp.discord.exceptions import SessionException
+
+        raise SessionException("Client not initialized")
+
+    channel = client.get_channel(int(channel_id))
+    if not channel:
+        from discord_mcp.discord.exceptions import MessageException
+
+        raise MessageException(
+            f"Channel {channel_id} not found",
+            details={"channel_id": channel_id},
+        )
+
+    if not isinstance(channel, (discord.TextChannel, discord.DMChannel)):
+        from discord_mcp.discord.exceptions import MessageException
+
+        raise MessageException(
+            f"Channel {channel_id} is not a text channel",
+            details={"channel_id": channel_id},
+        )
+
+    import os
+
+    os.makedirs(save_dir, exist_ok=True)
+
+    before_msg = None
+    after_msg = None
+    if before:
+        before_msg = await channel.fetch_message(int(before))
+    if after:
+        after_msg = await channel.fetch_message(int(after))
+
+    downloaded: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+    skipped = 0
+
+    async for message in channel.history(limit=limit, before=before_msg, after=after_msg):
+        for attachment in message.attachments:
+            if images_only and not _is_image_attachment(attachment):
+                skipped += 1
+                continue
+
+            safe_filename = os.path.basename(attachment.filename)
+            dest_path = os.path.join(save_dir, f"{message.id}_{attachment.id}_{safe_filename}")
+
+            try:
+                await attachment.save(dest_path)
+            except discord.HTTPException as e:
+                errors.append(
+                    {
+                        "message_id": str(message.id),
+                        "attachment_id": str(attachment.id),
+                        "filename": attachment.filename,
+                        "error": str(e),
+                    }
+                )
+                continue
+
+            downloaded.append(
+                {
+                    "message_id": str(message.id),
+                    "attachment_id": str(attachment.id),
+                    "filename": attachment.filename,
+                    "saved_path": dest_path,
+                    "size": attachment.size,
+                    "content_type": attachment.content_type,
+                }
+            )
+
+    await _with_status("Downloading channel attachments")
+    logger.info(
+        "channel_attachments_downloaded",
+        channel_id=channel_id,
+        downloaded_count=len(downloaded),
+        skipped_count=skipped,
+        error_count=len(errors),
+    )
+
+    return {
+        "success": True,
+        "channel_id": channel_id,
+        "save_dir": save_dir,
+        "downloaded_count": len(downloaded),
+        "skipped_count": skipped,
+        "files": downloaded,
+        "errors": errors,
+    }
