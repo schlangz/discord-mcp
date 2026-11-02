@@ -26,6 +26,21 @@ def _is_image_attachment(attachment: discord.Attachment) -> bool:
     return attachment.filename.lower().endswith(IMAGE_EXTENSIONS)
 
 
+async def _resolve_channel(client: discord.Client, channel_id: str):
+    """Find a channel or thread by id.
+
+    The cache only holds channels and the active threads of guilds the bot can
+    see, so an archived thread is fetched from the API instead.
+    """
+    channel = client.get_channel(int(channel_id))
+    if channel is not None:
+        return channel
+    try:
+        return await client.fetch_channel(int(channel_id))
+    except (discord.NotFound, discord.Forbidden):
+        return None
+
+
 async def _with_status(activity: str):
     """Helper to update bot status."""
     await update_bot_status(activity, "playing")
@@ -352,7 +367,7 @@ async def get_message(channel_id: str, message_id: str) -> dict[str, Any]:
 
         raise SessionException("Client not initialized")
 
-    channel = client.get_channel(int(channel_id))
+    channel = await _resolve_channel(client, channel_id)
     if not channel:
         from discord_mcp.discord.exceptions import MessageException
 
@@ -391,12 +406,22 @@ async def get_message(channel_id: str, message_id: str) -> dict[str, Any]:
     }
 
 
+MAX_HISTORY_MESSAGES = 5000
+
+
 async def get_channel_messages(
     channel_id: str,
-    limit: int = 50,
+    limit: Optional[int] = 50,
     before: Optional[str] = None,
     after: Optional[str] = None,
+    oldest_first: bool = False,
 ) -> list[dict[str, Any]]:
+    """Read messages of a text channel, a DM or a thread (active or archived).
+
+    limit=None reads everything (discord.py pages through the API 100 messages
+    at a time); a number is capped at MAX_HISTORY_MESSAGES. Newest first unless
+    oldest_first is set; with `after` the history already runs oldest first.
+    """
     session = await get_current_session()
     client = session.client
 
@@ -405,7 +430,7 @@ async def get_channel_messages(
 
         raise SessionException("Client not initialized")
 
-    channel = client.get_channel(int(channel_id))
+    channel = await _resolve_channel(client, channel_id)
     if not channel:
         from discord_mcp.discord.exceptions import MessageException
 
@@ -414,11 +439,11 @@ async def get_channel_messages(
             details={"channel_id": channel_id},
         )
 
-    if not isinstance(channel, (discord.TextChannel, discord.DMChannel)):
+    if not isinstance(channel, (discord.TextChannel, discord.DMChannel, discord.Thread)):
         from discord_mcp.discord.exceptions import MessageException
 
         raise MessageException(
-            f"Channel {channel_id} is not a text channel",
+            f"Channel {channel_id} is not a text channel or a thread",
             details={"channel_id": channel_id},
         )
 
@@ -429,11 +454,14 @@ async def get_channel_messages(
     if after:
         after_msg = await channel.fetch_message(int(after))
 
+    effective_limit = None if limit is None else max(0, min(limit, MAX_HISTORY_MESSAGES))
+
     messages = []
     async for message in channel.history(
-        limit=min(limit, 100),
+        limit=effective_limit,
         before=before_msg,
         after=after_msg,
+        oldest_first=oldest_first or None,
     ):
         messages.append(
             {
@@ -447,6 +475,11 @@ async def get_channel_messages(
                 },
                 "timestamp": message.created_at.isoformat(),
                 "edited_timestamp": message.edited_at.isoformat() if message.edited_at else None,
+                "reply_to": (
+                    str(message.reference.message_id)
+                    if message.reference and message.reference.message_id
+                    else None
+                ),
                 "attachments": [_serialize_attachment(a) for a in message.attachments],
                 "pinned": message.pinned,
             }
@@ -471,7 +504,7 @@ async def download_channel_attachments(
 
         raise SessionException("Client not initialized")
 
-    channel = client.get_channel(int(channel_id))
+    channel = await _resolve_channel(client, channel_id)
     if not channel:
         from discord_mcp.discord.exceptions import MessageException
 
@@ -480,11 +513,11 @@ async def download_channel_attachments(
             details={"channel_id": channel_id},
         )
 
-    if not isinstance(channel, (discord.TextChannel, discord.DMChannel)):
+    if not isinstance(channel, (discord.TextChannel, discord.DMChannel, discord.Thread)):
         from discord_mcp.discord.exceptions import MessageException
 
         raise MessageException(
-            f"Channel {channel_id} is not a text channel",
+            f"Channel {channel_id} is not a text channel or a thread",
             details={"channel_id": channel_id},
         )
 

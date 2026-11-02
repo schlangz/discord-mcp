@@ -571,15 +571,21 @@ async def fetch_message(channel_id: str, message_id: str) -> dict[str, Any]:
 @mcp.tool()
 async def fetch_channel_history(
     channel_id: str,
-    limit: int = 50,
+    limit: int | None = 50,
     before: str | None = None,
     after: str | None = None,
+    oldest_first: bool = False,
 ) -> list[dict[str, Any]]:
+    """Read the messages of a text channel, a DM, or a thread (active or
+    archived; pass the thread's id as channel_id). limit=None reads the whole
+    channel or thread (paged 100 at a time); a number is capped at 5000. Newest
+    first unless oldest_first is true; before/after take message ids."""
     return await get_channel_messages(
         channel_id=channel_id,
         limit=limit,
         before=before,
         after=after,
+        oldest_first=oldest_first,
     )
 
 
