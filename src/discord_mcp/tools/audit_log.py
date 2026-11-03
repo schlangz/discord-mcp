@@ -12,6 +12,42 @@ async def _with_status(activity: str):
     await update_bot_status(activity, "playing")
 
 
+def _diff_values(diff: Any) -> dict[str, Any]:
+    """The attributes an AuditLogDiff holds, as {name: value}. A diff yields (name, value) pairs."""
+    values: dict[str, Any] = {}
+    try:
+        for name, value in diff:
+            values[name] = value
+    except Exception:
+        logger.warning("audit_log_diff_unreadable")
+    return values
+
+
+def _entry_changes(entry: discord.AuditLogEntry) -> list[dict[str, Any]]:
+    """The before and after of every attribute an audit log entry changed.
+
+    discord.py's entry.changes is an AuditLogChanges, which is not iterable: the changes
+    live in its before and after diffs, so the two are paired by attribute name.
+    """
+    changes = getattr(entry, "changes", None)
+    if not changes:
+        return []
+    before = _diff_values(changes.before)
+    after = _diff_values(changes.after)
+    result: list[dict[str, Any]] = []
+    for name in list(before) + [n for n in after if n not in before]:
+        old = before.get(name)
+        new = after.get(name)
+        result.append(
+            {
+                "attribute": name,
+                "before": str(old) if old is not None else None,
+                "after": str(new) if new is not None else None,
+            }
+        )
+    return result
+
+
 async def get_audit_log(
     guild_id: str,
     user_id: Optional[str] = None,
@@ -77,14 +113,8 @@ async def get_audit_log(
                 "created_at": entry.created_at.isoformat() if entry.created_at else None,
             }
 
-            if entry.changes:
-                changes = []
-                for change in entry.changes:
-                    changes.append({
-                        "attribute": change.attribute,
-                        "before": str(change.before) if change.before is not None else None,
-                        "after": str(change.after) if change.after is not None else None,
-                    })
+            changes = _entry_changes(entry)
+            if changes:
                 entry_data["changes"] = changes
 
             entries.append(entry_data)

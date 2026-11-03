@@ -480,6 +480,7 @@ async def get_channel_messages(
                     if message.reference and message.reference.message_id
                     else None
                 ),
+                "type": message.type.name,
                 "attachments": [_serialize_attachment(a) for a in message.attachments],
                 "pinned": message.pinned,
             }
